@@ -52,7 +52,7 @@ function parseSSE(
   });
 }
 
-export async function checkConfig(): Promise<{ requires_code: boolean }> {
+export async function checkConfig(): Promise<{ requires_code: boolean; access_hint: string }> {
   const res = await fetch("/api/config");
   return res.json();
 }

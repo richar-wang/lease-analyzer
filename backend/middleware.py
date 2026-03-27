@@ -14,7 +14,7 @@ def check_access_code(request: Request) -> None:
     if not settings.access_code:
         return
     code = request.headers.get("X-Access-Code", "")
-    if code != settings.access_code:
+    if code.lower().strip() != settings.access_code.lower().strip():
         raise HTTPException(status_code=401, detail="Invalid access code.")
 
 

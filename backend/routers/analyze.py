@@ -25,7 +25,10 @@ async def health():
 
 @router.get("/config")
 async def get_config():
-    return {"requires_code": bool(settings.access_code)}
+    return {
+        "requires_code": bool(settings.access_code),
+        "access_hint": settings.access_hint,
+    }
 
 
 @router.post("/analyze")

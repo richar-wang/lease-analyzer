@@ -8,7 +8,7 @@ import ErrorMessage from "./components/ErrorMessage";
 
 type AppState =
   | { status: "loading" }
-  | { status: "auth" }
+  | { status: "auth"; hint: string }
   | { status: "idle" }
   | { status: "analyzing"; stepMessage: string }
   | { status: "success"; data: AnalysisResponse }
@@ -65,14 +65,14 @@ function StepIndicator({ currentStep }: { currentStep: string }) {
   );
 }
 
-function AccessCodeScreen({ onSubmit }: { onSubmit: () => void }) {
+function AccessCodeScreen({ hint, onSubmit }: { hint: string; onSubmit: () => void }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!code.trim()) {
-      setError("Please enter an access code.");
+      setError("Please enter your answer.");
       return;
     }
     sessionStorage.setItem("access_code", code.trim());
@@ -85,15 +85,19 @@ function AccessCodeScreen({ onSubmit }: { onSubmit: () => void }) {
       <h2 className="text-lg font-semibold text-gray-900 mb-2">
         Access Code Required
       </h2>
-      <p className="text-sm text-gray-500 mb-6">
-        Enter the access code to use the lease analyzer.
-      </p>
+      {hint ? (
+        <p className="text-sm text-gray-600 mb-6 italic">"{hint}"</p>
+      ) : (
+        <p className="text-sm text-gray-500 mb-6">
+          Enter the access code to use the lease analyzer.
+        </p>
+      )}
       <form onSubmit={handleSubmit} className="inline-flex flex-col gap-3 w-72">
         <input
-          type="password"
+          type="text"
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          placeholder="Enter access code"
+          placeholder="Your answer (one word)"
           className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           autoFocus
         />
@@ -113,9 +117,9 @@ function App() {
   const [state, setState] = useState<AppState>({ status: "loading" });
 
   useEffect(() => {
-    checkConfig().then(({ requires_code }) => {
-      if (requires_code && !sessionStorage.getItem("access_code")) {
-        setState({ status: "auth" });
+    checkConfig().then((config) => {
+      if (config.requires_code && !sessionStorage.getItem("access_code")) {
+        setState({ status: "auth", hint: config.access_hint || "" });
       } else {
         setState({ status: "idle" });
       }
@@ -147,7 +151,7 @@ function App() {
       const msg = e instanceof Error ? e.message : "An unexpected error occurred";
       if (msg.includes("access code")) {
         sessionStorage.removeItem("access_code");
-        setState({ status: "auth" });
+        setState({ status: "auth", hint: "" });
       } else {
         setState({ status: "error", message: msg });
       }
@@ -163,7 +167,7 @@ function App() {
       const msg = e instanceof Error ? e.message : "An unexpected error occurred";
       if (msg.includes("access code")) {
         sessionStorage.removeItem("access_code");
-        setState({ status: "auth" });
+        setState({ status: "auth", hint: "" });
       } else {
         setState({ status: "error", message: msg });
       }
@@ -181,7 +185,7 @@ function App() {
         )}
 
         {state.status === "auth" && (
-          <AccessCodeScreen onSubmit={() => setState({ status: "idle" })} />
+          <AccessCodeScreen hint={state.hint} onSubmit={() => setState({ status: "idle" })} />
         )}
 
         {state.status === "idle" && (
