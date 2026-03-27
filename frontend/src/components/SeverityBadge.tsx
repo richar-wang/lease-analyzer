@@ -2,7 +2,7 @@ import type { Severity } from "../types/analysis";
 
 const config: Record<Severity, { bg: string; text: string; label: string }> = {
   red: { bg: "bg-red-100", text: "text-red-800", label: "Illegal / Unenforceable" },
-  yellow: { bg: "bg-yellow-100", text: "text-yellow-800", label: "Potentially Problematic" },
+  yellow: { bg: "bg-yellow-100", text: "text-yellow-800", label: "Suspect" },
   green: { bg: "bg-green-100", text: "text-green-800", label: "Worth Noting" },
 };
 

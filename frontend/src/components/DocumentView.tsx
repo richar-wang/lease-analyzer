@@ -230,7 +230,7 @@ export default function DocumentView({ data }: { data: AnalysisResponse }) {
           </span>
           <span className="flex items-center gap-1.5 text-xs text-gray-600">
             <span className="inline-block w-3 h-3 rounded-sm bg-amber-100 border border-amber-300" />
-            Problematic
+            Suspect
           </span>
           <span className="flex items-center gap-1.5 text-xs text-gray-600">
             <span className="inline-block w-3 h-3 rounded-sm bg-emerald-100 border border-emerald-300" />

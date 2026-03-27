@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import type { AnalysisResponse } from "./types/analysis";
 import { analyzeLease, checkConfig, getDemoAnalysis } from "./services/api";
-import Header from "./components/Header";
 import UploadSection from "./components/UploadSection";
 import AnalysisResults from "./components/AnalysisResults";
 import ErrorMessage from "./components/ErrorMessage";
+import LanguageToggle from "./components/LanguageToggle";
 
 type AppState =
   | { status: "loading" }
@@ -21,8 +21,11 @@ const steps = [
   { key: "complete", label: "Done" },
 ];
 
-function StepIndicator({ currentStep }: { currentStep: string }) {
+function StepIndicator({ currentStep, isHebrew }: { currentStep: string; isHebrew: boolean }) {
   const activeIndex = steps.findIndex((s) => s.key === currentStep);
+  const accent = isHebrew ? "bg-[#0038A8]" : "bg-blue-600";
+  const accentLight = isHebrew ? "bg-[#e8eef8] text-[#0038A8] ring-[#0038A8]" : "bg-blue-100 text-blue-700 ring-blue-600";
+  const accentText = isHebrew ? "text-[#0038A8]" : "text-blue-700";
 
   return (
     <div className="flex items-center justify-center gap-2 mb-6">
@@ -37,23 +40,23 @@ function StepIndicator({ currentStep }: { currentStep: string }) {
             <div key={step.key} className="flex items-center gap-2">
               {i > 0 && (
                 <div
-                  className={`w-8 h-0.5 ${isDone ? "bg-blue-600" : "bg-gray-300"}`}
+                  className={`w-8 h-0.5 ${isDone ? accent : "bg-gray-300"}`}
                 />
               )}
               <div className="flex items-center gap-1.5">
                 <div
                   className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
                     isDone
-                      ? "bg-blue-600 text-white"
+                      ? `${accent} text-white`
                       : isActive
-                        ? "bg-blue-100 text-blue-700 ring-2 ring-blue-600"
+                        ? `${accentLight} ring-2`
                         : "bg-gray-200 text-gray-500"
                   }`}
                 >
                   {isDone ? "\u2713" : i + 1}
                 </div>
                 <span
-                  className={`text-xs ${isActive ? "text-blue-700 font-medium" : "text-gray-500"}`}
+                  className={`text-xs ${isActive ? `${accentText} font-medium` : "text-gray-500"}`}
                 >
                   {step.label}
                 </span>
@@ -115,6 +118,7 @@ function AccessCodeScreen({ hint, onSubmit }: { hint: string; onSubmit: () => vo
 
 function App() {
   const [state, setState] = useState<AppState>({ status: "loading" });
+  const [isHebrew, setIsHebrew] = useState(false);
 
   useEffect(() => {
     checkConfig().then((config) => {
@@ -127,6 +131,12 @@ function App() {
       setState({ status: "idle" });
     });
   }, []);
+
+  const toggleHebrew = () => {
+    const next = !isHebrew;
+    setIsHebrew(next);
+    sessionStorage.setItem("language", next ? "he" : "en");
+  };
 
   const onStatus = (message: string) => {
     setState((prev) =>
@@ -176,9 +186,30 @@ function App() {
 
   const reset = () => setState({ status: "idle" });
 
+  // IDF blue theme when Hebrew is active
+  const bgClass = isHebrew ? "bg-[#f0f4fa]" : "bg-gray-50";
+  const headerBg = isHebrew ? "bg-[#0038A8] border-[#002d8a]" : "bg-white border-gray-200";
+  const headerText = isHebrew ? "text-white" : "text-gray-900";
+  const headerSub = isHebrew ? "text-blue-200" : "text-gray-500";
+  const spinnerAccent = isHebrew ? "border-t-[#0038A8]" : "border-t-blue-600";
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header />
+    <div className={`min-h-screen ${bgClass}`} dir={isHebrew ? "rtl" : "ltr"}>
+      <header className={`border-b ${headerBg}`}>
+        <div className="mx-auto max-w-4xl px-6 py-6 flex items-center justify-between">
+          <div>
+            <h1 className={`text-2xl font-bold ${headerText}`}>
+              {isHebrew ? "מנתח חוזה שכירות באונטריו" : "Ontario Tenant Lease Analyzer"}
+            </h1>
+            <p className={`mt-1 text-sm ${headerSub}`}>
+              {isHebrew
+                ? "העלו את חוזה השכירות שלכם לבדיקת סעיפים בלתי חוקיים"
+                : "Upload your lease to check for illegal or unenforceable clauses under the Residential Tenancies Act, 2006"}
+            </p>
+          </div>
+          <LanguageToggle isHebrew={isHebrew} onToggle={toggleHebrew} />
+        </div>
+      </header>
       <main className="mx-auto max-w-4xl px-6 py-8">
         {state.status === "loading" && (
           <div className="text-center py-16 text-gray-400">Loading...</div>
@@ -198,8 +229,8 @@ function App() {
 
         {state.status === "analyzing" && (
           <div className="text-center py-16">
-            <StepIndicator currentStep={getStepKey(state.stepMessage)} />
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-blue-600 mb-4" />
+            <StepIndicator currentStep={getStepKey(state.stepMessage)} isHebrew={isHebrew} />
+            <div className={`inline-block h-8 w-8 animate-spin rounded-full border-4 border-gray-300 ${spinnerAccent} mb-4`} />
             <p className="text-gray-600 font-medium">{state.stepMessage}</p>
           </div>
         )}
@@ -209,7 +240,7 @@ function App() {
         )}
 
         {state.status === "success" && (
-          <AnalysisResults data={state.data} onReset={reset} />
+          <AnalysisResults data={state.data} onReset={reset} isHebrew={isHebrew} />
         )}
       </main>
     </div>
