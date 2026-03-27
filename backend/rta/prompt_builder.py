@@ -4,18 +4,6 @@ from rta.standard_lease import STANDARD_LEASE_SECTIONS
 SUPPORTED_LANGUAGES = {
     "en": "English",
     "he": "Hebrew (עברית)",
-    "fr": "French",
-    "zh": "Simplified Chinese",
-    "ar": "Arabic",
-    "es": "Spanish",
-    "pt": "Portuguese",
-    "ko": "Korean",
-    "ta": "Tamil",
-    "hi": "Hindi",
-    "ur": "Urdu",
-    "tl": "Tagalog",
-    "fa": "Farsi",
-    "pa": "Punjabi",
 }
 
 
