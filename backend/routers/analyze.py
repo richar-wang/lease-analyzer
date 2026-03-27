@@ -1,4 +1,6 @@
+import asyncio
 import json
+import time
 from pathlib import Path
 from typing import AsyncGenerator
 
@@ -8,7 +10,6 @@ from fastapi.responses import StreamingResponse
 from config import settings
 from middleware import check_access_code
 from rta.prompt_builder import SUPPORTED_LANGUAGES
-from schemas.analysis import AnalysisResponse
 from services.lease_analyzer import analyze_lease, analyze_lease_images
 from services.pdf_extractor import extract_pages_as_images, extract_text_from_pdf
 
@@ -67,13 +68,25 @@ async def analyze_lease_endpoint(request: Request, file: UploadFile = File(...))
                 yield _sse_event("error", {"message": "Could not read this PDF."})
                 return
 
-        yield _sse_event("status", {"step": "analyzing", "message": "Analyzing lease against the RTA (this takes 15-30 seconds)..."})
+        yield _sse_event("status", {"step": "analyzing", "message": "Analyzing lease against the RTA..."})
+
+        if use_vision:
+            task = asyncio.create_task(analyze_lease_images(page_images, language))
+        else:
+            task = asyncio.create_task(analyze_lease(text, language))
+
+        start = time.monotonic()
+        last_update = start
+        while not task.done():
+            await asyncio.sleep(1)
+            now = time.monotonic()
+            if not task.done() and now - last_update >= 3:
+                elapsed = int(now - start)
+                yield _sse_event("status", {"step": "analyzing", "message": f"Analyzing... ({elapsed}s elapsed)"})
+                last_update = now
 
         try:
-            if use_vision:
-                result = await analyze_lease_images(page_images, language)
-            else:
-                result = await analyze_lease(text, language)
+            result = task.result()
         except (RuntimeError, Exception) as e:
             yield _sse_event("error", {"message": str(e)})
             return
@@ -101,10 +114,21 @@ async def demo_analysis(request: Request):
 
         text = extract_text_from_pdf(contents)
 
-        yield _sse_event("status", {"step": "analyzing", "message": "Analyzing lease against the RTA (this takes 15-30 seconds)..."})
+        yield _sse_event("status", {"step": "analyzing", "message": "Analyzing lease against the RTA..."})
+
+        task = asyncio.create_task(analyze_lease(text, language))
+        start = time.monotonic()
+        last_update = start
+        while not task.done():
+            await asyncio.sleep(1)
+            now = time.monotonic()
+            if not task.done() and now - last_update >= 3:
+                elapsed = int(now - start)
+                yield _sse_event("status", {"step": "analyzing", "message": f"Analyzing... ({elapsed}s elapsed)"})
+                last_update = now
 
         try:
-            result = await analyze_lease(text, language)
+            result = task.result()
         except (RuntimeError, Exception) as e:
             yield _sse_event("error", {"message": str(e)})
             return

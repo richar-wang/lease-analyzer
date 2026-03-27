@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 from rta.sections import RTA_SECTIONS
 from rta.standard_lease import STANDARD_LEASE_SECTIONS
 
@@ -7,6 +9,7 @@ SUPPORTED_LANGUAGES = {
 }
 
 
+@lru_cache(maxsize=4)
 def build_system_prompt(language: str = "en") -> str:
     sections_text = ""
     for key, section in RTA_SECTIONS.items():

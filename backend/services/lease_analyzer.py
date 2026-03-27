@@ -1,18 +1,16 @@
-import json
-
 import anthropic
 
 from config import settings
 from rta.prompt_builder import build_system_prompt, build_user_prompt
 from schemas.analysis import AnalysisResponse
 
-_client: anthropic.Anthropic | None = None
+_client: anthropic.AsyncAnthropic | None = None
 
 
-def _get_client() -> anthropic.Anthropic:
+def _get_client() -> anthropic.AsyncAnthropic:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        _client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     return _client
 
 
@@ -82,8 +80,8 @@ def _estimate_tokens(text: str) -> int:
     return len(text) // 4
 
 
-def _call_claude(system_prompt: str, user_content) -> AnalysisResponse:
-    """Shared Claude API call. user_content can be a string or a list of content blocks."""
+async def _call_claude(system_prompt: str, user_content) -> AnalysisResponse:
+    """Call Claude with prompt caching and async I/O."""
     if not settings.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY is not configured. Set it in the .env file.")
 
@@ -92,12 +90,12 @@ def _call_claude(system_prompt: str, user_content) -> AnalysisResponse:
     if isinstance(user_content, str):
         input_tokens_est += _estimate_tokens(user_content)
     else:
-        # Vision: estimate text parts, add ~1000 tokens per image
+        # Vision: estimate text parts, add ~1600 tokens per image
         for block in user_content:
             if isinstance(block, dict) and block.get("type") == "text":
                 input_tokens_est += _estimate_tokens(block["text"])
             elif isinstance(block, dict) and block.get("type") == "image":
-                input_tokens_est += 1600  # ~tokens per page image
+                input_tokens_est += 1600
 
     input_cost = input_tokens_est * INPUT_COST_PER_TOKEN
     remaining_budget = settings.max_cost_per_request - input_cost
@@ -107,12 +105,16 @@ def _call_claude(system_prompt: str, user_content) -> AnalysisResponse:
     )
 
     try:
-        response = _get_client().messages.create(
+        response = await _get_client().messages.create(
             model=settings.claude_model,
             max_tokens=max_output_tokens,
-            system=system_prompt,
+            system=[{
+                "type": "text",
+                "text": system_prompt,
+                "cache_control": {"type": "ephemeral"},
+            }],
             messages=[{"role": "user", "content": user_content}],
-            tools=[ANALYSIS_TOOL],
+            tools=[{**ANALYSIS_TOOL, "cache_control": {"type": "ephemeral"}}],
             tool_choice={"type": "tool", "name": "report_lease_analysis"},
         )
     except anthropic.RateLimitError:
@@ -133,7 +135,7 @@ async def analyze_lease(lease_text: str, language: str = "en") -> AnalysisRespon
     """Analyze lease from extracted text."""
     system_prompt = build_system_prompt(language)
     user_prompt = build_user_prompt(lease_text)
-    return _call_claude(system_prompt, user_prompt)
+    return await _call_claude(system_prompt, user_prompt)
 
 
 async def analyze_lease_images(page_images: list[dict], language: str = "en") -> AnalysisResponse:
@@ -147,4 +149,4 @@ async def analyze_lease_images(page_images: list[dict], language: str = "en") ->
         )},
         *page_images,
     ]
-    return _call_claude(system_prompt, user_content)
+    return await _call_claude(system_prompt, user_content)
