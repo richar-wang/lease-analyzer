@@ -2,9 +2,18 @@ import type { AnalysisResponse } from "../types/analysis";
 
 export type StatusCallback = (message: string) => void;
 
+export interface Language {
+  code: string;
+  name: string;
+}
+
 function getHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
   const code = sessionStorage.getItem("access_code");
-  return code ? { "X-Access-Code": code } : {};
+  if (code) headers["X-Access-Code"] = code;
+  const lang = sessionStorage.getItem("language");
+  if (lang) headers["X-Language"] = lang;
+  return headers;
 }
 
 function parseSSE(
@@ -17,9 +26,7 @@ function parseSSE(
     let settled = false;
 
     function processEvents() {
-      // SSE events are separated by double newlines
       const parts = buffer.split("\n\n");
-      // Last part may be incomplete — keep it in buffer
       buffer = parts.pop() || "";
 
       for (const part of parts) {
@@ -64,7 +71,6 @@ function parseSSE(
         if (settled) return;
 
         if (done) {
-          // Try processing remaining buffer before giving up
           buffer += "\n\n";
           processEvents();
           if (!settled) {
@@ -91,6 +97,11 @@ function parseSSE(
 
 export async function checkConfig(): Promise<{ requires_code: boolean; access_hint: string }> {
   const res = await fetch("/api/config");
+  return res.json();
+}
+
+export async function fetchLanguages(): Promise<Language[]> {
+  const res = await fetch("/api/languages");
   return res.json();
 }
 

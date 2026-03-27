@@ -129,16 +129,16 @@ def _call_claude(system_prompt: str, user_content) -> AnalysisResponse:
     raise RuntimeError("Analysis service returned an unexpected format.")
 
 
-async def analyze_lease(lease_text: str) -> AnalysisResponse:
+async def analyze_lease(lease_text: str, language: str = "en") -> AnalysisResponse:
     """Analyze lease from extracted text."""
-    system_prompt = build_system_prompt()
+    system_prompt = build_system_prompt(language)
     user_prompt = build_user_prompt(lease_text)
     return _call_claude(system_prompt, user_prompt)
 
 
-async def analyze_lease_images(page_images: list[dict]) -> AnalysisResponse:
+async def analyze_lease_images(page_images: list[dict], language: str = "en") -> AnalysisResponse:
     """Analyze lease from page images (scanned PDFs). Uses Claude vision."""
-    system_prompt = build_system_prompt()
+    system_prompt = build_system_prompt(language)
     user_content = [
         {"type": "text", "text": (
             "Analyze the following Ontario residential lease agreement shown in the page images below. "

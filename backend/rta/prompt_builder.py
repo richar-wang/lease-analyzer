@@ -1,8 +1,25 @@
 from rta.sections import RTA_SECTIONS
 from rta.standard_lease import STANDARD_LEASE_SECTIONS
 
+SUPPORTED_LANGUAGES = {
+    "en": "English",
+    "he": "Hebrew (עברית)",
+    "fr": "French",
+    "zh": "Simplified Chinese",
+    "ar": "Arabic",
+    "es": "Spanish",
+    "pt": "Portuguese",
+    "ko": "Korean",
+    "ta": "Tamil",
+    "hi": "Hindi",
+    "ur": "Urdu",
+    "tl": "Tagalog",
+    "fa": "Farsi",
+    "pa": "Punjabi",
+}
 
-def build_system_prompt() -> str:
+
+def build_system_prompt(language: str = "en") -> str:
     sections_text = ""
     for key, section in RTA_SECTIONS.items():
         sections_text += (
@@ -18,6 +35,17 @@ def build_system_prompt() -> str:
             f"\n--- {section['title']} ---\n"
             f"{section['standard']}\n"
         )
+
+    lang_name = SUPPORTED_LANGUAGES.get(language, "English")
+    if language != "en":
+        language_instruction = (
+            f"\n10. LANGUAGE: Write ALL of the following fields in {lang_name}: "
+            f"explanation, summary, standard_lease_comparison, and violation_type. "
+            f"Keep original_clause_text EXACTLY as it appears in the lease (do not translate it). "
+            f"Keep rta_section references in English (e.g., 's.105(1)')."
+        )
+    else:
+        language_instruction = ""
 
     return f"""You are an expert Ontario residential tenancy law analyst. Your task is to analyze residential lease agreements against the Ontario Residential Tenancies Act, 2006 (RTA) AND compare them to the Ontario Standard Lease (Form 2229E).
 
@@ -41,7 +69,7 @@ INSTRUCTIONS:
 6. Quote the original clause text EXACTLY as it appears in the lease — do not paraphrase.
 7. In your explanation, use plain language a non-lawyer can understand. Explain what the tenant's actual rights are.
 8. Reference the specific RTA section(s) that apply to each flagged clause.
-9. For each flagged clause, also note how the standard lease handles the same topic in the standard_lease_comparison field. If the clause deviates from the Ontario Standard Lease, explain what the standard lease says instead. If it is not relevant to the standard lease, leave this field as an empty string."""
+9. For each flagged clause, also note how the standard lease handles the same topic in the standard_lease_comparison field. If the clause deviates from the Ontario Standard Lease, explain what the standard lease says instead. If it is not relevant to the standard lease, leave this field as an empty string.{language_instruction}"""
 
 
 def build_user_prompt(lease_text: str) -> str:

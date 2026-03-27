@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 
 from config import settings
 from middleware import check_access_code
+from rta.prompt_builder import SUPPORTED_LANGUAGES
 from schemas.analysis import AnalysisResponse
 from services.lease_analyzer import analyze_lease, analyze_lease_images
 from services.pdf_extractor import extract_pages_as_images, extract_text_from_pdf
@@ -16,6 +17,11 @@ router = APIRouter(prefix="/api")
 
 def _sse_event(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
+def _get_language(request: Request) -> str:
+    lang = request.headers.get("X-Language", "en")
+    return lang if lang in SUPPORTED_LANGUAGES else "en"
 
 
 @router.get("/health")
@@ -31,10 +37,15 @@ async def get_config():
     }
 
 
+@router.get("/languages")
+async def get_languages():
+    return [{"code": code, "name": name} for code, name in SUPPORTED_LANGUAGES.items()]
+
+
 @router.post("/analyze")
 async def analyze_lease_endpoint(request: Request, file: UploadFile = File(...)):
     check_access_code(request)
-
+    language = _get_language(request)
 
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=422, detail="Only PDF files are accepted.")
@@ -60,9 +71,9 @@ async def analyze_lease_endpoint(request: Request, file: UploadFile = File(...))
 
         try:
             if use_vision:
-                result = await analyze_lease_images(page_images)
+                result = await analyze_lease_images(page_images, language)
             else:
-                result = await analyze_lease(text)
+                result = await analyze_lease(text, language)
         except (RuntimeError, Exception) as e:
             yield _sse_event("error", {"message": str(e)})
             return
@@ -77,7 +88,7 @@ async def analyze_lease_endpoint(request: Request, file: UploadFile = File(...))
 @router.get("/demo")
 async def demo_analysis(request: Request):
     check_access_code(request)
-
+    language = _get_language(request)
 
     demo_path = Path(__file__).parent.parent / "sample" / "demo_lease.pdf"
     if not demo_path.exists():
@@ -93,7 +104,7 @@ async def demo_analysis(request: Request):
         yield _sse_event("status", {"step": "analyzing", "message": "Analyzing lease against the RTA (this takes 15-30 seconds)..."})
 
         try:
-            result = await analyze_lease(text)
+            result = await analyze_lease(text, language)
         except (RuntimeError, Exception) as e:
             yield _sse_event("error", {"message": str(e)})
             return

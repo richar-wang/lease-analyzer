@@ -1,4 +1,5 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { fetchLanguages, type Language } from "../services/api";
 
 export default function UploadSection({
   onFileSelected,
@@ -10,7 +11,20 @@ export default function UploadSection({
   isLoading: boolean;
 }) {
   const [isDragging, setIsDragging] = useState(false);
+  const [languages, setLanguages] = useState<Language[]>([]);
+  const [selectedLang, setSelectedLang] = useState(
+    () => sessionStorage.getItem("language") || "en"
+  );
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetchLanguages().then(setLanguages).catch(() => {});
+  }, []);
+
+  const handleLangChange = (code: string) => {
+    setSelectedLang(code);
+    sessionStorage.setItem("language", code);
+  };
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -61,6 +75,23 @@ export default function UploadSection({
           Supports text-based and scanned PDFs (max 10MB)
         </p>
       </div>
+
+      {languages.length > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <label className="text-sm text-gray-500">Results language:</label>
+          <select
+            value={selectedLang}
+            onChange={(e) => handleLangChange(e.target.value)}
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {languages.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="text-center">
         <span className="text-sm text-gray-400">or</span>
