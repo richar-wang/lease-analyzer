@@ -6,7 +6,7 @@ from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from config import settings
-from middleware import check_access_code, check_rate_limit
+from middleware import check_access_code
 from schemas.analysis import AnalysisResponse
 from services.lease_analyzer import analyze_lease, analyze_lease_images
 from services.pdf_extractor import extract_pages_as_images, extract_text_from_pdf
@@ -34,7 +34,7 @@ async def get_config():
 @router.post("/analyze")
 async def analyze_lease_endpoint(request: Request, file: UploadFile = File(...)):
     check_access_code(request)
-    check_rate_limit(request)
+
 
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=422, detail="Only PDF files are accepted.")
@@ -77,7 +77,7 @@ async def analyze_lease_endpoint(request: Request, file: UploadFile = File(...))
 @router.get("/demo")
 async def demo_analysis(request: Request):
     check_access_code(request)
-    check_rate_limit(request)
+
 
     demo_path = Path(__file__).parent.parent / "sample" / "demo_lease.pdf"
     if not demo_path.exists():

@@ -72,15 +72,44 @@ ANALYSIS_TOOL = {
 }
 
 
+# Sonnet pricing per token
+INPUT_COST_PER_TOKEN = 3.0 / 1_000_000   # $3 per 1M input tokens
+OUTPUT_COST_PER_TOKEN = 15.0 / 1_000_000  # $15 per 1M output tokens
+
+
+def _estimate_tokens(text: str) -> int:
+    """Rough token estimate: ~4 characters per token."""
+    return len(text) // 4
+
+
 def _call_claude(system_prompt: str, user_content) -> AnalysisResponse:
     """Shared Claude API call. user_content can be a string or a list of content blocks."""
     if not settings.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY is not configured. Set it in the .env file.")
 
+    # Estimate input tokens and calculate max output tokens within budget
+    input_tokens_est = _estimate_tokens(system_prompt)
+    if isinstance(user_content, str):
+        input_tokens_est += _estimate_tokens(user_content)
+    else:
+        # Vision: estimate text parts, add ~1000 tokens per image
+        for block in user_content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                input_tokens_est += _estimate_tokens(block["text"])
+            elif isinstance(block, dict) and block.get("type") == "image":
+                input_tokens_est += 1600  # ~tokens per page image
+
+    input_cost = input_tokens_est * INPUT_COST_PER_TOKEN
+    remaining_budget = settings.max_cost_per_request - input_cost
+    max_output_tokens = min(
+        settings.claude_max_tokens,
+        max(2000, int(remaining_budget / OUTPUT_COST_PER_TOKEN))
+    )
+
     try:
         response = _get_client().messages.create(
             model=settings.claude_model,
-            max_tokens=settings.claude_max_tokens,
+            max_tokens=max_output_tokens,
             system=system_prompt,
             messages=[{"role": "user", "content": user_content}],
             tools=[ANALYSIS_TOOL],
