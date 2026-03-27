@@ -2,6 +2,11 @@ import type { AnalysisResponse } from "../types/analysis";
 
 export type StatusCallback = (message: string) => void;
 
+function getHeaders(): Record<string, string> {
+  const code = sessionStorage.getItem("access_code");
+  return code ? { "X-Access-Code": code } : {};
+}
+
 function parseSSE(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   onStatus: StatusCallback
@@ -47,6 +52,11 @@ function parseSSE(
   });
 }
 
+export async function checkConfig(): Promise<{ requires_code: boolean }> {
+  const res = await fetch("/api/config");
+  return res.json();
+}
+
 export async function analyzeLease(
   file: File,
   onStatus: StatusCallback
@@ -57,6 +67,7 @@ export async function analyzeLease(
   const res = await fetch("/api/analyze", {
     method: "POST",
     body: formData,
+    headers: getHeaders(),
   });
 
   if (!res.ok) {
@@ -70,7 +81,9 @@ export async function analyzeLease(
 export async function getDemoAnalysis(
   onStatus: StatusCallback
 ): Promise<AnalysisResponse> {
-  const res = await fetch("/api/demo");
+  const res = await fetch("/api/demo", {
+    headers: getHeaders(),
+  });
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Demo analysis failed" }));

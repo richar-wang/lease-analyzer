@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AnalysisResponse } from "./types/analysis";
-import { analyzeLease, getDemoAnalysis } from "./services/api";
+import { analyzeLease, checkConfig, getDemoAnalysis } from "./services/api";
 import Header from "./components/Header";
 import UploadSection from "./components/UploadSection";
 import AnalysisResults from "./components/AnalysisResults";
 import ErrorMessage from "./components/ErrorMessage";
 
 type AppState =
+  | { status: "loading" }
+  | { status: "auth" }
   | { status: "idle" }
   | { status: "analyzing"; stepMessage: string }
   | { status: "success"; data: AnalysisResponse }
@@ -63,8 +65,64 @@ function StepIndicator({ currentStep }: { currentStep: string }) {
   );
 }
 
+function AccessCodeScreen({ onSubmit }: { onSubmit: () => void }) {
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!code.trim()) {
+      setError("Please enter an access code.");
+      return;
+    }
+    sessionStorage.setItem("access_code", code.trim());
+    setError("");
+    onSubmit();
+  };
+
+  return (
+    <div className="text-center py-16">
+      <h2 className="text-lg font-semibold text-gray-900 mb-2">
+        Access Code Required
+      </h2>
+      <p className="text-sm text-gray-500 mb-6">
+        Enter the access code to use the lease analyzer.
+      </p>
+      <form onSubmit={handleSubmit} className="inline-flex flex-col gap-3 w-72">
+        <input
+          type="password"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="Enter access code"
+          className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          autoFocus
+        />
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <button
+          type="submit"
+          className="rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 transition-colors"
+        >
+          Continue
+        </button>
+      </form>
+    </div>
+  );
+}
+
 function App() {
-  const [state, setState] = useState<AppState>({ status: "idle" });
+  const [state, setState] = useState<AppState>({ status: "loading" });
+
+  useEffect(() => {
+    checkConfig().then(({ requires_code }) => {
+      if (requires_code && !sessionStorage.getItem("access_code")) {
+        setState({ status: "auth" });
+      } else {
+        setState({ status: "idle" });
+      }
+    }).catch(() => {
+      setState({ status: "idle" });
+    });
+  }, []);
 
   const onStatus = (message: string) => {
     setState((prev) =>
@@ -72,7 +130,6 @@ function App() {
     );
   };
 
-  // Extract step key from the status message for the step indicator
   const getStepKey = (message: string) => {
     if (message.includes("Extracting")) return "extracting";
     if (message.includes("Rendering") || message.includes("Scanned")) return "rendering";
@@ -87,10 +144,13 @@ function App() {
       const data = await analyzeLease(file, onStatus);
       setState({ status: "success", data });
     } catch (e) {
-      setState({
-        status: "error",
-        message: e instanceof Error ? e.message : "An unexpected error occurred",
-      });
+      const msg = e instanceof Error ? e.message : "An unexpected error occurred";
+      if (msg.includes("access code")) {
+        sessionStorage.removeItem("access_code");
+        setState({ status: "auth" });
+      } else {
+        setState({ status: "error", message: msg });
+      }
     }
   };
 
@@ -100,10 +160,13 @@ function App() {
       const data = await getDemoAnalysis(onStatus);
       setState({ status: "success", data });
     } catch (e) {
-      setState({
-        status: "error",
-        message: e instanceof Error ? e.message : "An unexpected error occurred",
-      });
+      const msg = e instanceof Error ? e.message : "An unexpected error occurred";
+      if (msg.includes("access code")) {
+        sessionStorage.removeItem("access_code");
+        setState({ status: "auth" });
+      } else {
+        setState({ status: "error", message: msg });
+      }
     }
   };
 
@@ -113,6 +176,14 @@ function App() {
     <div className="min-h-screen bg-gray-50">
       <Header />
       <main className="mx-auto max-w-4xl px-6 py-8">
+        {state.status === "loading" && (
+          <div className="text-center py-16 text-gray-400">Loading...</div>
+        )}
+
+        {state.status === "auth" && (
+          <AccessCodeScreen onSubmit={() => setState({ status: "idle" })} />
+        )}
+
         {state.status === "idle" && (
           <UploadSection
             onFileSelected={handleFile}
