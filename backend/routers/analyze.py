@@ -55,6 +55,7 @@ async def analyze_lease_endpoint(file: UploadFile = File(...)):
             yield _sse_event("error", {"message": str(e)})
             return
 
+        result.lease_text = text or ""
         yield _sse_event("status", {"step": "complete", "message": "Analysis complete!"})
         yield _sse_event("result", result.model_dump())
 
@@ -82,6 +83,7 @@ async def demo_analysis():
             yield _sse_event("error", {"message": str(e)})
             return
 
+        result.lease_text = text
         yield _sse_event("status", {"step": "complete", "message": "Analysis complete!"})
         yield _sse_event("result", result.model_dump())
 

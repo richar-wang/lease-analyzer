@@ -20,3 +20,4 @@ class FlaggedClause(BaseModel):
 class AnalysisResponse(BaseModel):
     flagged_clauses: list[FlaggedClause]
     summary: str
+    lease_text: str = ""

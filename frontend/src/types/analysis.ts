@@ -11,4 +11,5 @@ export interface FlaggedClause {
 export interface AnalysisResponse {
   flagged_clauses: FlaggedClause[];
   summary: string;
+  lease_text: string;
 }
