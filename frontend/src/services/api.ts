@@ -1,6 +1,56 @@
 import type { AnalysisResponse } from "../types/analysis";
 
-export async function analyzeLease(file: File): Promise<AnalysisResponse> {
+export type StatusCallback = (message: string) => void;
+
+function parseSSE(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  onStatus: StatusCallback
+): Promise<AnalysisResponse> {
+  return new Promise((resolve, reject) => {
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    function read() {
+      reader.read().then(({ done, value }) => {
+        if (done) {
+          reject(new Error("Connection closed before analysis completed."));
+          return;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        let currentEvent = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            const data = JSON.parse(line.slice(6));
+            if (currentEvent === "status") {
+              onStatus(data.message);
+            } else if (currentEvent === "result") {
+              resolve(data as AnalysisResponse);
+              return;
+            } else if (currentEvent === "error") {
+              reject(new Error(data.message));
+              return;
+            }
+          }
+        }
+
+        read();
+      });
+    }
+
+    read();
+  });
+}
+
+export async function analyzeLease(
+  file: File,
+  onStatus: StatusCallback
+): Promise<AnalysisResponse> {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -14,10 +64,12 @@ export async function analyzeLease(file: File): Promise<AnalysisResponse> {
     throw new Error(err.detail || "Analysis failed");
   }
 
-  return res.json();
+  return parseSSE(res.body!.getReader(), onStatus);
 }
 
-export async function getDemoAnalysis(): Promise<AnalysisResponse> {
+export async function getDemoAnalysis(
+  onStatus: StatusCallback
+): Promise<AnalysisResponse> {
   const res = await fetch("/api/demo");
 
   if (!res.ok) {
@@ -25,5 +77,5 @@ export async function getDemoAnalysis(): Promise<AnalysisResponse> {
     throw new Error(err.detail || "Demo analysis failed");
   }
 
-  return res.json();
+  return parseSSE(res.body!.getReader(), onStatus);
 }

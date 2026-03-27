@@ -1,6 +1,9 @@
+import json
 from pathlib import Path
+from typing import AsyncGenerator
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 
 from config import settings
 from schemas.analysis import AnalysisResponse
@@ -10,12 +13,16 @@ from services.pdf_extractor import extract_pages_as_images, extract_text_from_pd
 router = APIRouter(prefix="/api")
 
 
+def _sse_event(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
 @router.get("/health")
 async def health():
     return {"status": "ok"}
 
 
-@router.post("/analyze", response_model=AnalysisResponse)
+@router.post("/analyze")
 async def analyze_lease_endpoint(file: UploadFile = File(...)):
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=422, detail="Only PDF files are accepted.")
@@ -24,41 +31,58 @@ async def analyze_lease_endpoint(file: UploadFile = File(...)):
     if len(contents) > settings.max_file_size_bytes:
         raise HTTPException(status_code=413, detail="File too large. Maximum 10MB.")
 
-    text = extract_text_from_pdf(contents)
+    async def stream() -> AsyncGenerator[str, None]:
+        yield _sse_event("status", {"step": "extracting", "message": "Extracting text from PDF..."})
 
-    try:
-        if text and len(text.strip()) >= 50:
-            result = await analyze_lease(text)
-        else:
-            # Scanned/image PDF — fall back to Claude vision
+        text = extract_text_from_pdf(contents)
+        use_vision = not text or len(text.strip()) < 50
+
+        if use_vision:
+            yield _sse_event("status", {"step": "rendering", "message": "Scanned PDF detected. Rendering pages as images..."})
             page_images = extract_pages_as_images(contents)
             if not page_images:
-                raise HTTPException(status_code=422, detail="Could not read this PDF.")
-            result = await analyze_lease_images(page_images)
-    except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Unexpected error: {type(e).__name__}: {e}")
+                yield _sse_event("error", {"message": "Could not read this PDF."})
+                return
 
-    return result
+        yield _sse_event("status", {"step": "analyzing", "message": "Analyzing lease against the RTA (this takes 15-30 seconds)..."})
+
+        try:
+            if use_vision:
+                result = await analyze_lease_images(page_images)
+            else:
+                result = await analyze_lease(text)
+        except (RuntimeError, Exception) as e:
+            yield _sse_event("error", {"message": str(e)})
+            return
+
+        yield _sse_event("status", {"step": "complete", "message": "Analysis complete!"})
+        yield _sse_event("result", result.model_dump())
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
 
 
-@router.get("/demo", response_model=AnalysisResponse)
+@router.get("/demo")
 async def demo_analysis():
     demo_path = Path(__file__).parent.parent / "sample" / "demo_lease.pdf"
     if not demo_path.exists():
         raise HTTPException(status_code=404, detail="Demo lease PDF not found.")
 
     contents = demo_path.read_bytes()
-    text = extract_text_from_pdf(contents)
 
-    try:
-        result = await analyze_lease(text)
-    except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Unexpected error: {type(e).__name__}: {e}")
+    async def stream() -> AsyncGenerator[str, None]:
+        yield _sse_event("status", {"step": "extracting", "message": "Extracting text from demo lease..."})
 
-    return result
+        text = extract_text_from_pdf(contents)
+
+        yield _sse_event("status", {"step": "analyzing", "message": "Analyzing lease against the RTA (this takes 15-30 seconds)..."})
+
+        try:
+            result = await analyze_lease(text)
+        except (RuntimeError, Exception) as e:
+            yield _sse_event("error", {"message": str(e)})
+            return
+
+        yield _sse_event("status", {"step": "complete", "message": "Analysis complete!"})
+        yield _sse_event("result", result.model_dump())
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
