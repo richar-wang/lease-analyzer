@@ -1,4 +1,5 @@
 from rta.sections import RTA_SECTIONS
+from rta.standard_lease import STANDARD_LEASE_SECTIONS
 
 
 def build_system_prompt() -> str:
@@ -11,11 +12,22 @@ def build_system_prompt() -> str:
             f"{section['text']}\n"
         )
 
-    return f"""You are an expert Ontario residential tenancy law analyst. Your task is to analyze residential lease agreements against the Ontario Residential Tenancies Act, 2006 (RTA).
+    standard_text = ""
+    for key, section in STANDARD_LEASE_SECTIONS.items():
+        standard_text += (
+            f"\n--- {section['title']} ---\n"
+            f"{section['standard']}\n"
+        )
+
+    return f"""You are an expert Ontario residential tenancy law analyst. Your task is to analyze residential lease agreements against the Ontario Residential Tenancies Act, 2006 (RTA) AND compare them to the Ontario Standard Lease (Form 2229E).
 
 Below are the key sections of the RTA that you MUST use as your reference when analyzing lease clauses. Base your analysis on this statutory text, not on general knowledge.
 
 {sections_text}
+
+Below are the key provisions of the Ontario Standard Lease (Form 2229E) — the mandatory lease form for most residential tenancies. Use these to identify deviations.
+
+{standard_text}
 
 INSTRUCTIONS:
 1. Read the lease text provided by the user carefully and completely.
@@ -28,11 +40,12 @@ INSTRUCTIONS:
 5. If the lease contains NO problematic clauses, return an empty flagged_clauses array with a summary noting the lease appears compliant.
 6. Quote the original clause text EXACTLY as it appears in the lease — do not paraphrase.
 7. In your explanation, use plain language a non-lawyer can understand. Explain what the tenant's actual rights are.
-8. Reference the specific RTA section(s) that apply to each flagged clause."""
+8. Reference the specific RTA section(s) that apply to each flagged clause.
+9. For each flagged clause, also note how the standard lease handles the same topic in the standard_lease_comparison field. If the clause deviates from the Ontario Standard Lease, explain what the standard lease says instead. If it is not relevant to the standard lease, leave this field as an empty string."""
 
 
 def build_user_prompt(lease_text: str) -> str:
-    return f"""Analyze the following Ontario residential lease agreement. Identify all clauses that may violate or conflict with the Residential Tenancies Act, 2006.
+    return f"""Analyze the following Ontario residential lease agreement. Identify all clauses that may violate or conflict with the Residential Tenancies Act, 2006. Also compare each flagged clause to the Ontario Standard Lease (Form 2229E).
 
 LEASE TEXT:
 ---

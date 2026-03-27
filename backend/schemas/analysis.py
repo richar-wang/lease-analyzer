@@ -15,6 +15,7 @@ class FlaggedClause(BaseModel):
     severity: Severity
     rta_section: str
     explanation: str
+    standard_lease_comparison: str = ""
 
 
 class AnalysisResponse(BaseModel):

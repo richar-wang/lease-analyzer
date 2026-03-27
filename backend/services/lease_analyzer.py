@@ -47,6 +47,10 @@ ANALYSIS_TOOL = {
                             "type": "string",
                             "description": "Plain-language explanation of why this clause is problematic and what the tenant's rights actually are",
                         },
+                        "standard_lease_comparison": {
+                            "type": "string",
+                            "description": "How the Ontario Standard Lease (Form 2229E) handles this topic differently. Empty string if not applicable.",
+                        },
                     },
                     "required": [
                         "original_clause_text",
@@ -54,6 +58,7 @@ ANALYSIS_TOOL = {
                         "severity",
                         "rta_section",
                         "explanation",
+                        "standard_lease_comparison",
                     ],
                 },
             },

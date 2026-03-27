@@ -14,37 +14,74 @@ function parseSSE(
   return new Promise((resolve, reject) => {
     const decoder = new TextDecoder();
     let buffer = "";
+    let settled = false;
+
+    function processEvents() {
+      // SSE events are separated by double newlines
+      const parts = buffer.split("\n\n");
+      // Last part may be incomplete — keep it in buffer
+      buffer = parts.pop() || "";
+
+      for (const part of parts) {
+        if (settled) return;
+
+        let eventType = "";
+        let eventData = "";
+
+        for (const line of part.split("\n")) {
+          if (line.startsWith("event: ")) {
+            eventType = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            eventData += line.slice(6);
+          }
+        }
+
+        if (!eventType || !eventData) continue;
+
+        try {
+          const data = JSON.parse(eventData);
+          if (eventType === "status") {
+            onStatus(data.message);
+          } else if (eventType === "result") {
+            settled = true;
+            resolve(data as AnalysisResponse);
+            return;
+          } else if (eventType === "error") {
+            settled = true;
+            reject(new Error(data.message));
+            return;
+          }
+        } catch {
+          // JSON parse failed — likely incomplete data, skip
+        }
+      }
+    }
 
     function read() {
+      if (settled) return;
+
       reader.read().then(({ done, value }) => {
+        if (settled) return;
+
         if (done) {
-          reject(new Error("Connection closed before analysis completed."));
+          // Try processing remaining buffer before giving up
+          buffer += "\n\n";
+          processEvents();
+          if (!settled) {
+            reject(new Error("Connection closed before analysis completed."));
+          }
           return;
         }
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+        processEvents();
 
-        let currentEvent = "";
-        for (const line of lines) {
-          if (line.startsWith("event: ")) {
-            currentEvent = line.slice(7).trim();
-          } else if (line.startsWith("data: ")) {
-            const data = JSON.parse(line.slice(6));
-            if (currentEvent === "status") {
-              onStatus(data.message);
-            } else if (currentEvent === "result") {
-              resolve(data as AnalysisResponse);
-              return;
-            } else if (currentEvent === "error") {
-              reject(new Error(data.message));
-              return;
-            }
-          }
+        if (!settled) read();
+      }).catch((err) => {
+        if (!settled) {
+          settled = true;
+          reject(err);
         }
-
-        read();
       });
     }
 

@@ -6,6 +6,7 @@ export interface FlaggedClause {
   severity: Severity;
   rta_section: string;
   explanation: string;
+  standard_lease_comparison: string;
 }
 
 export interface AnalysisResponse {

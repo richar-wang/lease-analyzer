@@ -29,6 +29,17 @@ export default function ClauseCard({ clause }: { clause: FlaggedClause }) {
           <span className="text-blue-700">{clause.rta_section}</span>
         </p>
         <p className="text-gray-600 leading-relaxed">{clause.explanation}</p>
+
+        {clause.standard_lease_comparison && (
+          <div className="mt-3 rounded-lg bg-blue-50 border border-blue-200 p-3">
+            <p className="text-xs font-semibold text-blue-800 mb-1">
+              Ontario Standard Lease (Form 2229E)
+            </p>
+            <p className="text-blue-700 text-xs leading-relaxed">
+              {clause.standard_lease_comparison}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
